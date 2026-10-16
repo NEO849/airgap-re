@@ -15,21 +15,24 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: System-Abhängigkeiten (bubblewrap für Isolations-Tests)
-        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+      - name: System-Abhängigkeiten (bubblewrap für Isolations-Tests, shellcheck für Bash)
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap shellcheck
 
       - name: Python-Abhängigkeiten
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Lint (ruff)
-        run: ruff check re_mcp benchmark tests
+      - name: Lint (ruff) — ganzes Repo, inkl. engine/
+        run: ruff check .
 
-      - name: Typecheck (mypy)
-        run: mypy re_mcp
+      - name: Typecheck (mypy) — Server + Engine
+        run: mypy re_mcp engine/re_triage.py
 
-      - name: Tests (pytest) — inkl. Isolations-Beweis
+      - name: Shellcheck — die Isolations-Scripts (Bash)
+        run: shellcheck --severity=warning engine/sandbox_analyze.sh engine/apk_native_triage.sh
+
+      - name: Tests (pytest) — inkl. Isolations-Beweis gegen den ausgelieferten Pfad
         run: pytest -v
 
       - name: Benchmark (reproduzierbare Kennzahlen)

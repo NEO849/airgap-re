@@ -8,9 +8,11 @@ applicable law. It is **read-only**: it never patches, rebuilds, or executes the
 ## Design stance
 - The target is treated as **data**, mounted read-only, and analysed statically. It is never run.
 - Untrusted samples are analysed inside a bubblewrap chamber with **no network namespace**
-  (`--unshare-all`), capabilities dropped, host bound read-only, and cgroup resource caps.
-- These guarantees are enforced by tests in `tests/test_sandbox_isolation.py`; a regression
-  fails CI.
+  (`--unshare-all`), capabilities dropped, host bound read-only (except one throwaway `/out`
+  removed on exit), and cgroup resource caps.
+- These guarantees are enforced by tests that drive the **shipped** `engine/sandbox_analyze.sh`
+  (`tests/test_sandbox_isolation.py`); removing `--unshare-all` turns the egress test red, so a
+  regression fails CI.
 
 ## Known limitations (stated honestly)
 - No custom seccomp-BPF filter is applied (see README "Non-goal"). Isolation rests on

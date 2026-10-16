@@ -36,10 +36,39 @@ def count_own_code() -> dict:
     return {"own_code_files": files, "own_code_loc": loc}
 
 
-def count_deps() -> int:
+def count_direct_deps() -> int:
     with (REPO / "pyproject.toml").open("rb") as f:
         data = tomllib.load(f)
     return len(data["project"].get("dependencies", []))
+
+
+def count_transitive_deps() -> int | None:
+    """Ehrliche Zahl: der volle Laufzeit-Abschluss von 'mcp' (nicht nur die direkte Deklaration)."""
+    import importlib.metadata as md
+    import re as _re
+    try:
+        seen: set[str] = set()
+        stack = ["mcp"]
+        while stack:
+            name = stack.pop().lower().replace("_", "-")
+            if name in seen:
+                continue
+            seen.add(name)
+            try:
+                reqs = md.requires(name) or []
+            except md.PackageNotFoundError:
+                continue
+            for r in reqs:
+                # Extras/Marker ausblenden; nur Pflicht-Laufzeit-Deps zählen
+                if "extra ==" in r or "; extra" in r:
+                    continue
+                m = _re.match(r"^([A-Za-z0-9_.\-]+)", r.strip())
+                if m:
+                    stack.append(m.group(1))
+        seen.discard("mcp")
+        return len(seen)
+    except Exception:
+        return None
 
 
 def repo_file_count() -> int:
@@ -108,7 +137,8 @@ def determinism_check() -> dict:
 def main() -> int:
     m = {}
     m.update(count_own_code())
-    m["runtime_dependencies"] = count_deps()
+    m["direct_dependencies"] = count_direct_deps()
+    m["transitive_dependencies"] = count_transitive_deps()
     m["repo_tracked_files"] = repo_file_count()
     m["isolation"] = isolation_checks()
     m["determinism"] = determinism_check()
@@ -134,7 +164,8 @@ def main() -> int:
 |---|---|
 | Eigener Code (Dateien) | {m['own_code_files']} |
 | Eigener Code (Zeilen) | {m['own_code_loc']} |
-| Laufzeit-Abhängigkeiten | {m['runtime_dependencies']} |
+| Direkte Laufzeit-Abhängigkeit | {m['direct_dependencies']} (mcp, gepinnt) |
+| Transitive Laufzeit-Deps (voller Abschluss von mcp) | {m['transitive_dependencies']} |
 | Versionierte Dateien gesamt | {m['repo_tracked_files']} |
 | Isolations-Selbsttest | {iso_line} |
 | Determinismus (statisches Inventar, 2 Läufe) | {det_line} |
@@ -159,7 +190,7 @@ und unserer Tool-Prüfung (2026-10-12) entnommen. Sie dienen der ehrlichen Einor
 |---|---|---|
 | Tool-Breite | nativ + APK-nativ (fokussiert) | sehr breit (nativ/web/firmware/netz/WASM/…) — **REA führt** |
 | Untrusted-Isolation | bwrap no-net + cgroup, nie ausgeführt | **kein Sandbox**; Laufzeit mit User-Rechten |
-| Laufzeit-Deps | {m['runtime_dependencies']} (gepinnt) | ~35 npm (per Vet 2026-10-12) |
+| Laufzeit-Deps | {m['direct_dependencies']} dir./{m['transitive_dependencies']} trans. | ~35 npm (Vet, andere Basis) |
 | Setup-Fußabdruck | lokal, schreibt nicht in Agent-Config | `npx … setup` schreibt in `~/.claude` |
 | Auditierbarkeit | {m['own_code_loc']} Zeilen eigener Code | großer Baum (per Vet ~2255 Dateien) |
 

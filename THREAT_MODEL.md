@@ -21,8 +21,8 @@ the host, or (c) exhaust resources.
 
 | Adversary goal | Mitigation | Enforced by |
 |---|---|---|
-| Phone home / exfiltrate | `bwrap --unshare-all` removes the net namespace — no egress possible | `test_no_network_egress` |
-| Tamper with host files | host paths bound read-only | `test_host_filesystem_readonly` |
+| Phone home / exfiltrate | `bwrap --unshare-all` removes the net namespace — no egress possible | `test_shipped_script_blocks_egress` |
+| Tamper with host files | host paths read-only, except a throwaway `/out` removed on exit | `test_shipped_script_host_readonly` |
 | Exhaust memory/CPU/PIDs | cgroup `MemoryMax`/`TasksMax`/`CPUQuota` via systemd-run | `test_cgroup_memory_cap_enforced` |
 | Gain privileges | bwrap drops all capabilities; `--new-session`; non-root | design + bwrap defaults |
 | Execute the payload | purely static pipeline; sample mounted read-only, never run | design (`sandbox_analyze.sh`) |

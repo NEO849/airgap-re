@@ -1,87 +1,79 @@
 """
 Isolations-Beweis-Tests — belegen die messbaren Security-Claims des Projekts.
 
-Diese Tests sind der Kern des Projekt-Versprechens: die Sandbox-Garantien sind
-nicht behauptet, sondern in CI nachgewiesen. Sie laufen überall, wo bwrap
-(bubblewrap) installiert ist (im CI via `apt-get install -y bubblewrap`).
+WICHTIG: Diese Tests fahren den AUSGELIEFERTEN Pfad (engine/sandbox_analyze.sh --selftest),
+nicht eine nachgebaute bwrap-Zeile. Wird --unshare-all aus dem Script entfernt, schlägt
+test_shipped_script_blocks_egress fehl (empirisch verifiziert). Das ist der echte
+Regressions-Wächter — ein grüner Build bedeutet: die ausgelieferte Isolation hält.
+
+Läuft überall, wo bwrap (bubblewrap) installiert ist (CI: apt-get install -y bubblewrap).
 """
-import os
+import json
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
+
+from re_mcp import config
 
 BWRAP = shutil.which("bwrap")
 pytestmark = pytest.mark.skipif(BWRAP is None, reason="bwrap (bubblewrap) nicht installiert")
 
-_LIB64 = ["--ro-bind", "/lib64", "/lib64"] if os.path.exists("/lib64") else []
-_BASE = [
-    "bwrap", "--unshare-all", "--die-with-parent",
-    "--ro-bind", "/usr", "/usr", "--ro-bind", "/bin", "/bin", "--ro-bind", "/lib", "/lib",
-    *_LIB64, "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
-]
+SANDBOX = str(config.SANDBOX)
 
 
-def _run_in_chamber(code: str) -> str:
-    r = subprocess.run(_BASE + ["/usr/bin/python3", "-c", code],
-                       capture_output=True, text=True, timeout=60)
-    return (r.stdout or "") + (r.stderr or "")
+def _selftest() -> dict:
+    """Ruft den ausgelieferten Isolations-Selbsttest auf und gibt sein JSON zurück."""
+    r = subprocess.run(["bash", SANDBOX, "--selftest"],
+                       check=False, capture_output=True, text=True, timeout=120)
+    return json.loads(r.stdout.strip())
 
 
-def test_no_network_egress():
-    """In der Kammer ist JEDER ausgehende Verbindungsversuch strukturell unmöglich."""
-    out = _run_in_chamber(
-        "import socket\n"
-        "try:\n"
-        "    socket.setdefaulttimeout(3)\n"
-        "    socket.create_connection(('1.1.1.1', 53))\n"
-        "    print('REACHED')\n"
-        "except Exception:\n"
-        "    print('BLOCKED')\n"
-    )
-    assert "BLOCKED" in out and "REACHED" not in out
+def test_shipped_script_blocks_egress():
+    """Ausgelieferter Pfad: in der Kammer ist ausgehender Netzverkehr unmöglich.
+    Entfernt man --unshare-all aus sandbox_analyze.sh, wird dieser Test ROT."""
+    assert _selftest()["no_network_egress"] == "PASS"
 
 
-def test_host_filesystem_readonly():
-    """Host-Pfade sind read-only gebunden — Schreiben MUSS scheitern."""
-    out = _run_in_chamber(
-        "try:\n"
-        "    open('/usr/_remcp_probe', 'w').write('x')\n"
-        "    print('WROTE')\n"
-        "except Exception:\n"
-        "    print('READONLY')\n"
-    )
-    assert "READONLY" in out and "WROTE" not in out
+def test_shipped_script_host_readonly():
+    """Ausgelieferter Pfad: Schreiben auf einen Host-Pfad scheitert."""
+    assert _selftest()["host_filesystem_readonly"] == "PASS"
 
 
-def test_no_host_network_interfaces():
-    """Die Netz-Namespace der Kammer enthält nur loopback — kein Weg nach draußen."""
-    out = _run_in_chamber(
-        "import socket\n"
-        "ifaces = socket.if_nameindex()\n"
-        "print(sorted(n for _, n in ifaces))\n"
-    )
-    # nur 'lo' (oder leer) — keine echten Interfaces
-    assert "eth" not in out and "wlan" not in out and "en" not in out.replace("index", "")
+def test_shipped_script_overall_verdict():
+    assert _selftest()["verdict"] == "PASS"
+
+
+def test_shipped_script_declares_isolation_flags():
+    """Statischer Wächter gegen Claim-Drift: das ausgelieferte Script trägt die Garantien,
+    auf die README/THREAT_MODEL sich berufen."""
+    txt = Path(SANDBOX).read_text()
+    for needle in ("--unshare-all", "MemoryMax=", "MemorySwapMax=0", "TasksMax=", "CPUQuota="):
+        assert needle in txt, f"fehlt im ausgelieferten Script: {needle}"
 
 
 @pytest.mark.skipif(
     shutil.which("systemd-run") is None
     or subprocess.run(["systemd-run", "--user", "--scope", "true"],
-                      capture_output=True).returncode != 0,
+                      check=False, capture_output=True).returncode != 0,
     reason="systemd-run --user scope nicht nutzbar (cgroup-Delegation fehlt)",
 )
 def test_cgroup_memory_cap_enforced():
-    """Mit cgroup-MemoryMax wird ein Speicher-Fresser vom Kernel gekillt (OOM), nicht der Host."""
+    """Mit cgroup-MemoryMax + MemorySwapMax=0 wird ein Speicher-Fresser vom Kernel gekillt
+    (wie im ausgelieferten run_with_caps), nicht der Host."""
+    lib64 = ["--ro-bind", "/lib64", "/lib64"] if Path("/lib64").exists() else []
+    base = ["bwrap", "--unshare-all", "--die-with-parent",
+            "--ro-bind", "/usr", "/usr", "--ro-bind", "/bin", "/bin", "--ro-bind", "/lib", "/lib",
+            *lib64, "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]
     code = "b = bytearray()\n\nwhile True:\n    b += bytearray(10_000_000)\n"
     r = subprocess.run(
         ["systemd-run", "--user", "--scope", "-q", "-p", "MemoryMax=64M", "-p", "MemorySwapMax=0"]
-        + _BASE + ["/usr/bin/python3", "-c", code],
-        capture_output=True, text=True, timeout=60,
+        + base + ["/usr/bin/python3", "-c", code],
+        check=False, capture_output=True, text=True, timeout=60,
     )
-    # Der Prozess wird gekillt (OOM) -> non-zero exit; der Testlauf selbst überlebt.
-    assert r.returncode != 0
+    assert r.returncode != 0  # OOM-gekillt; der Testlauf selbst überlebt
 
 
 if __name__ == "__main__":

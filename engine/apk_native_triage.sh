@@ -54,7 +54,7 @@ SUMMARY="$OUT/native_triage_summary.md"
 # Dedup nach Lib-Name über ABIs: dieselbe libfoo.so nur EINMAL triagen (arm64 bevorzugt)
 declare -A SEEN
 # arm64 zuerst sortieren, damit die bevorzugte ABI gewinnt
-IFS=$'\n' SOS_SORTED=($(printf '%s\n' "${SOS[@]}" | sort -r)); unset IFS
+mapfile -t SOS_SORTED < <(printf '%s\n' "${SOS[@]}" | sort -r)
 for rel in "${SOS_SORTED[@]}"; do
     name="$(basename "$rel")"
     [ -n "${SEEN[$name]:-}" ] && continue
@@ -63,8 +63,10 @@ for rel in "${SOS_SORTED[@]}"; do
     [ -f "$lib" ] || continue
     echo "── $name ──"
     rep="$REPDIR/${name%.so}.md"
+    repj="$REPDIR/${name%.so}.json"
     # Fehler EINER Lib darf die Schleife NICHT abbrechen (Script-Baseline: set -uo pipefail, kein -e).
-    python3 "$RE_TRIAGE" "$lib" $SYMBOLIC --top 5 --md "$rep" 2>/dev/null || true
+    # Sowohl MD (menschenlesbar) als auch JSON (maschinenlesbar, vom MCP-Collector eingesammelt).
+    python3 "$RE_TRIAGE" "$lib" $SYMBOLIC --top 5 --md "$rep" --json "$repj" 2>/dev/null || true
     # Top-Zeile der Sink-Rank-Sektion ziehen; grep/pipefail-Fehler tolerieren
     top="$(grep -A1 'Top verdächtige' "$rep" 2>/dev/null | tail -1 || true)"
     echo "## $name" >> "$SUMMARY"

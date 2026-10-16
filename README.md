@@ -67,13 +67,17 @@ feature: the whole server is small enough to read in one sitting.
 Every claim below has a test that fails the build if the guarantee breaks
 ([`tests/test_sandbox_isolation.py`](tests/test_sandbox_isolation.py)):
 
+The tests drive the **shipped** script (`engine/sandbox_analyze.sh --selftest`), not a
+hand-rolled command — so the guard covers the exact code the server runs. Removing
+`--unshare-all` from the shipped script turns the egress test red (verified by sabotage).
+
 - **No egress.** The chamber runs `bwrap --unshare-all`, which removes the network namespace.
   An outbound connection is not blocked by policy — it is *structurally impossible*.
-  → `test_no_network_egress`
-- **Host filesystem is read-only.** Host paths are bound read-only; writes fail.
-  → `test_host_filesystem_readonly`
-- **Resource caps.** A cgroup `MemoryMax` makes a memory-bomb OOM-killed instead of taking the host down.
-  → `test_cgroup_memory_cap_enforced`
+  → `test_shipped_script_blocks_egress`
+- **Host filesystem is read-only**, except one throwaway `/out` (a `mktemp` dir) that is removed
+  on exit; writes to host paths fail. → `test_shipped_script_host_readonly`
+- **Resource caps.** A cgroup `MemoryMax` + `MemorySwapMax=0` makes a memory-bomb OOM-killed
+  instead of taking the host down. → `test_cgroup_memory_cap_enforced`
 - **The target is never executed.** The pipeline is purely static; the sample is mounted
   read-only and analysed as data.
 
@@ -103,7 +107,7 @@ README and our 2026-10-12 tool review — **external, not measured here.**
 |---|---|---|
 | Tool breadth | native + APK-native (focused) | very broad — **REA leads** |
 | Untrusted-sample isolation | bwrap no-net + cgroup, never executed | **no sandbox**; runtime paths run with your user rights |
-| Runtime dependencies | **1** (pinned) | ~35 npm deps |
+| Runtime dependencies | **1 direct** (`mcp`) / 27 transitive | ~35 npm (per our review — different counting basis) |
 | Setup footprint | local; does **not** write into your agent config | `npx … setup` writes into `~/.claude` |
 | Auditability | ~1,200 lines of own code | large tree (~2,255 files, per our review) |
 | License | MIT | MIT |

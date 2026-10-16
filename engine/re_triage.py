@@ -201,7 +201,8 @@ def enrich_floss(binary, timeout):
                 val = s.get("string") if isinstance(s, dict) else str(s)
                 if val:
                     flat.append(val)
-        interesting = [s for s in flat if re.search(r"(https?://|/bin/|%s|%n|\.\./|cmd|passwd|token|secret|key=)", s, re.I)]
+        _pat = r"(https?://|/bin/|%s|%n|\.\./|cmd|passwd|token|secret|key=)"
+        interesting = [s for s in flat if re.search(_pat, s, re.I)]
         return {"available": True, "total": len(flat), "interesting": interesting[:40]}
     except Exception:
         return {"available": True, "error": "parse"}

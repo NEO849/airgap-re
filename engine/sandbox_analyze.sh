@@ -8,24 +8,24 @@
 #
 #   - KEIN Netz        : bwrap --unshare-all (inkl. net)  -> Egress strukturell unmöglich
 #   - Keine Caps       : bwrap droppt alle Capabilities per Default
-#   - Read-only Host   : nur Tool-Dirs ro-gebunden; Ziel ro unter /target.bin
-#   - Schreiben nur     : tmpfs /tmp + eine gebundene /out (Host-Temp, danach gelöscht)
-#   - Ressourcen-Cap   : systemd-run cgroup MemoryMax/TasksMax/CPUQuota (falls verfügbar)
+#   - Read-only Host   : nur Tool-Dirs ro-gebunden; einzig /out (Host-Temp) ist rw,
+#                        wird per EXIT-trap gelöscht.
+#   - Ressourcen-Cap   : systemd-run cgroup MemoryMax + MemorySwapMax=0 + TasksMax + CPUQuota
 #   - Ziel wird NIE ausgeführt (rein statische Analyse).
 #
-# Non-Goal (bewusst NICHT behauptet): kein custom seccomp-BPF-Filter — bwrap setzt
-#   keinen per Default; ein falscher Filter würde Ghidra/Python brechen. Die Isolation
-#   stützt sich auf Namespaces (unshare-all) + cap-drop + read-only-bind + cgroup.
+# Non-Goal (bewusst NICHT behauptet): kein custom seccomp-BPF-Filter.
+#
+# WICHTIG: der Isolations-Aufbau (bwrap_base) wird EINMAL gebaut und von allen Modi
+#   geteilt — inkl. --selftest. Dadurch prüfen die Tests exakt den ausgelieferten Pfad:
+#   wird --unshare-all hier entfernt, schlägt der --selftest-Egress-Check fehl.
 #
 # Modi:
-#   sandbox_analyze.sh <binary> [--floss]            # einzelnes natives Binary
-#   sandbox_analyze.sh --apk <app.apk> --out <dir> [--arch <abi>]   # APK native libs
+#   sandbox_analyze.sh <binary> [--floss]
+#   sandbox_analyze.sh --apk <app.apk> --out <dir> [--arch <abi>]
+#   sandbox_analyze.sh --selftest        # beweist Isolation, ohne ein Ziel zu analysieren
 #
-# Env-Overrides (sonst Auto-Discovery):
-#   REMCP_ENGINE_DIR  Verzeichnis mit re_triage.py / apk_native_triage.sh / ghidra_scripts
-#   REMCP_GHIDRA      Ghidra-Installationsverzeichnis (Default: /opt/ghidra)
-#   REMCP_VENV        angr-venv-Verzeichnis           (Default: /opt/re-venv)
-#   REMCP_SBX_MEM_MAX / REMCP_SBX_PIDS_MAX / REMCP_SBX_CPU_MAX  cgroup-Limits
+# Env-Overrides (sonst Auto-Discovery): REMCP_ENGINE_DIR REMCP_GHIDRA REMCP_VENV
+#   REMCP_SBX_MEM_MAX REMCP_SBX_PIDS_MAX REMCP_SBX_CPU_MAX
 # ============================================================
 set -uo pipefail
 
@@ -44,22 +44,25 @@ RE_TRIAGE="$ENGINE_DIR/re_triage.py"
 APK_TRIAGE="$ENGINE_DIR/apk_native_triage.sh"
 
 # -------- Argumente parsen --------
-APK_MODE=0; BIN=""; APK=""; OUTDIR=""; ARCH=""; EXTRA=()
-if [ "${1:-}" = "--apk" ]; then
-  APK_MODE=1; shift
-  APK="${1:-}"; shift || true
-  while [ $# -gt 0 ]; do case "$1" in
-    --out) OUTDIR="${2:-}"; shift 2 ;;
-    --arch) ARCH="${2:-}"; shift 2 ;;
-    *) shift ;;
-  esac; done
-  [ -n "$APK" ] && [ -f "$APK" ] || { err_json "APK nicht gefunden: $APK"; exit 2; }
-  [ -n "$OUTDIR" ] || { err_json "--out <dir> fehlt"; exit 2; }
-else
-  BIN="${1:-}"; shift || true
-  for a in "$@"; do case "$a" in --floss) EXTRA+=(--floss) ;; esac; done
-  [ -n "$BIN" ] && [ -f "$BIN" ] || { err_json "Datei nicht gefunden: $BIN"; exit 2; }
-fi
+MODE="bin"; BIN=""; APK=""; OUTDIR=""; ARCH=""; EXTRA=()
+case "${1:-}" in
+  --selftest)
+    MODE="selftest"; shift ;;
+  --apk)
+    MODE="apk"; shift
+    APK="${1:-}"; shift || true
+    while [ $# -gt 0 ]; do case "$1" in
+      --out) OUTDIR="${2:-}"; shift 2 ;;
+      --arch) ARCH="${2:-}"; shift 2 ;;
+      *) shift ;;
+    esac; done
+    [ -n "$APK" ] && [ -f "$APK" ] || { err_json "APK nicht gefunden: $APK"; exit 2; }
+    [ -n "$OUTDIR" ] || { err_json "--out <dir> fehlt"; exit 2; } ;;
+  *)
+    BIN="${1:-}"; shift || true
+    for a in "$@"; do case "$a" in --floss) EXTRA+=(--floss) ;; esac; done
+    [ -n "$BIN" ] && [ -f "$BIN" ] || { err_json "Datei nicht gefunden: $BIN"; exit 2; } ;;
+esac
 
 OUT_HOST="$(mktemp -d /tmp/remcp_sbx.XXXXXX)"
 trap 'rm -rf "$OUT_HOST"' EXIT
@@ -71,46 +74,61 @@ for p in /usr /bin /sbin /lib /lib64 /etc "$GHIDRA_DIR" "$GHIDRA_REAL" "$VENV_DI
   [ -e "$p" ] && bind_ro+=(--ro-bind "$p" "$p")
 done
 
-# -------- bwrap-Kommando zusammenbauen --------
-bwrap_cmd=( bwrap --unshare-all --die-with-parent --new-session "${bind_ro[@]}" )
-if [ "$APK_MODE" -eq 1 ]; then
-  bwrap_cmd+=( --ro-bind "$APK" /target.apk --bind "$OUT_HOST" /out )
-  payload=( /usr/bin/env bash "$APK_TRIAGE" /target.apk --out /out )
-  [ -n "$ARCH" ] && payload+=( --arch "$ARCH" )
-else
-  bwrap_cmd+=( --ro-bind "$BIN" /target.bin --bind "$OUT_HOST" /out )
-  payload=( /usr/bin/python3 "$RE_TRIAGE" /target.bin --json /out/out.json --md /dev/null "${EXTRA[@]}" )
-fi
-bwrap_cmd+=( --tmpfs /tmp --proc /proc --dev /dev
+# -------- GETEILTER Isolations-Aufbau (von allen Modi genutzt) --------
+bwrap_base=( bwrap --unshare-all --die-with-parent --new-session "${bind_ro[@]}"
+             --tmpfs /tmp --proc /proc --dev /dev
              --setenv PATH "$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
              --setenv HOME /tmp --chdir /tmp
-             --setenv REMCP_ENGINE_DIR "$ENGINE_DIR"
-             "${payload[@]}" )
+             --setenv REMCP_ENGINE_DIR "$ENGINE_DIR" )
+
+# -------- Mode-spezifisches Kommando --------
+bwrap_cmd=( "${bwrap_base[@]}" )
+case "$MODE" in
+  selftest)
+    probe='import socket,json
+r={}
+try:
+    socket.setdefaulttimeout(3); socket.create_connection(("1.1.1.1",53)); r["no_network_egress"]="FAIL"
+except Exception: r["no_network_egress"]="PASS"
+try:
+    open("/usr/_remcp_probe","w").write("x"); r["host_filesystem_readonly"]="FAIL"
+except Exception: r["host_filesystem_readonly"]="PASS"
+r["verdict"]="PASS" if all(v=="PASS" for v in r.values()) else "FAIL"
+print(json.dumps(r))'
+    bwrap_cmd+=( /usr/bin/python3 -c "$probe" ) ;;
+  apk)
+    bwrap_cmd+=( --ro-bind "$APK" /target.apk --bind "$OUT_HOST" /out
+                 /usr/bin/env bash "$APK_TRIAGE" /target.apk --out /out )
+    [ -n "$ARCH" ] && bwrap_cmd+=( --arch "$ARCH" ) ;;
+  bin)
+    bwrap_cmd+=( --ro-bind "$BIN" /target.bin --bind "$OUT_HOST" /out
+                 /usr/bin/python3 "$RE_TRIAGE" /target.bin --json /out/out.json --md /dev/null "${EXTRA[@]}" ) ;;
+esac
 
 # -------- cgroup-Ressourcen-Cap via systemd-run (falls nutzbar) --------
 run_with_caps() {
+  local caps=( -p "MemoryMax=$MEM_MAX" -p "MemorySwapMax=0" -p "TasksMax=$PIDS_MAX" -p "CPUQuota=$CPU_MAX" )
   if command -v systemd-run >/dev/null 2>&1 && systemd-run --user --scope true >/dev/null 2>&1; then
-    systemd-run --user --scope -q \
-      -p "MemoryMax=$MEM_MAX" -p "TasksMax=$PIDS_MAX" -p "CPUQuota=$CPU_MAX" \
-      "${bwrap_cmd[@]}"
+    systemd-run --user --scope -q "${caps[@]}" "${bwrap_cmd[@]}"
   elif command -v systemd-run >/dev/null 2>&1 && [ "$(id -u)" = "0" ]; then
-    systemd-run --scope -q \
-      -p "MemoryMax=$MEM_MAX" -p "TasksMax=$PIDS_MAX" -p "CPUQuota=$CPU_MAX" \
-      "${bwrap_cmd[@]}"
+    systemd-run --scope -q "${caps[@]}" "${bwrap_cmd[@]}"
   else
-    # Fallback ohne cgroup-Cap: Isolation (Netz/Caps/FS) bleibt voll erhalten.
     echo "WARN: systemd-run nicht nutzbar — cgroup-Limits inaktiv, Netz/FS-Isolation unberührt." >&2
     "${bwrap_cmd[@]}"
   fi
 }
 
+# -------- Ausführen + Ergebnis --------
+if [ "$MODE" = "selftest" ]; then
+  # Selbsttest-JSON direkt auf stdout (kein /out nötig)
+  run_with_caps 2>/tmp/sbx.err
+  exit 0
+fi
+
 run_with_caps >/dev/null 2>/tmp/sbx.err || true
 
-# -------- Ergebnis einsammeln --------
-if [ "$APK_MODE" -eq 1 ]; then
-  # apk_native_triage.sh schreibt je .so einen json-Report nach /out -> Host-OUT_HOST
+if [ "$MODE" = "apk" ]; then
   if [ -n "$(find "$OUT_HOST" -name '*.json' 2>/dev/null)" ]; then
-    # Reports an den vom Server erwarteten outdir übergeben
     cp -a "$OUT_HOST"/. "$OUTDIR"/ 2>/dev/null || true
     echo '{"ok":true,"mode":"apk"}'
   else

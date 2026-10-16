@@ -173,39 +173,16 @@ def sandbox_analyze_binary(path: str, floss: bool = False) -> str:
 
 @mcp.tool()
 def sandbox_selftest() -> str:
-    """Beweist LIVE die Isolations-Garantien der Sandbox (keine Analyse eines Ziels):
-    (1) Netz-Zugriff in der Kammer schlägt fehl, (2) Schreiben auf den Host-Pfad scheitert.
-    Gibt pro Check PASS/FAIL zurück — die messbaren Security-Claims, selbst nachprüfbar."""
+    """Beweist LIVE die Isolations-Garantien der AUSGELIEFERTEN Sandbox (keine Analyse eines Ziels):
+    ruft exakt engine/sandbox_analyze.sh --selftest auf — denselben bwrap-Aufbau (inkl. --unshare-all)
+    wie die echte Analyse. (1) Netz-Zugriff schlägt fehl, (2) Host-Schreiben scheitert. PASS/FAIL je Check."""
     if not config.tool_available("bwrap"):
         return json.dumps({"error": "bwrap nicht verfügbar"})
-    results = {}
-    # Check 1: kein Egress — Verbindungsversuch MUSS fehlschlagen
-    net = ("import socket,sys\n"
-           "try:\n"
-           "  socket.setdefaulttimeout(3); socket.create_connection(('1.1.1.1',53))\n"
-           "  print('REACHED'); sys.exit(0)\n"
-           "except Exception:\n"
-           "  print('BLOCKED'); sys.exit(0)\n")
-    rc, out, _ = _run(["bwrap", "--unshare-all", "--die-with-parent", "--ro-bind", "/usr", "/usr",
-                       "--ro-bind", "/bin", "/bin", "--ro-bind", "/lib", "/lib",
-                       *(["--ro-bind", "/lib64", "/lib64"] if os.path.exists("/lib64") else []),
-                       "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
-                       "/usr/bin/python3", "-c", net], 60)
-    results["no_network_egress"] = "PASS" if "BLOCKED" in out else "FAIL(%s)" % (out.strip() or rc)
-    # Check 2: Host-Schreibschutz — Schreiben nach /etc (ro-bind) MUSS scheitern
-    wr = ("import sys\n"
-          "try:\n"
-          "  open('/usr/_remcp_probe','w').write('x'); print('WROTE'); sys.exit(0)\n"
-          "except Exception:\n"
-          "  print('READONLY'); sys.exit(0)\n")
-    rc, out, _ = _run(["bwrap", "--unshare-all", "--die-with-parent", "--ro-bind", "/usr", "/usr",
-                       "--ro-bind", "/bin", "/bin", "--ro-bind", "/lib", "/lib",
-                       *(["--ro-bind", "/lib64", "/lib64"] if os.path.exists("/lib64") else []),
-                       "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
-                       "/usr/bin/python3", "-c", wr], 60)
-    results["host_filesystem_readonly"] = "PASS" if "READONLY" in out else "FAIL(%s)" % (out.strip() or rc)
-    results["verdict"] = "PASS" if all(v == "PASS" for v in results.values()) else "FAIL"
-    return json.dumps(results, indent=2, ensure_ascii=False)
+    rc, out, serr = _run(["bash", str(config.SANDBOX), "--selftest"], 120)
+    try:
+        return json.dumps(json.loads(out.strip()), indent=2, ensure_ascii=False)
+    except Exception:
+        return json.dumps({"error": "Selbsttest ohne JSON", "rc": rc, "stdout": out[:400], "stderr": serr[:400]})
 
 
 @mcp.tool()
