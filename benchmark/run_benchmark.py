@@ -173,9 +173,9 @@ def main() -> int:
 ## Sicherheits-Garantien (in CI bewiesen, nicht behauptet)
 
 - **Kein Egress:** `bwrap --unshare-all` entfernt die Netz-Namespace — ausgehende
-  Verbindungen sind strukturell unmöglich. Beleg: `tests/test_sandbox_isolation.py::test_no_network_egress`.
-- **Host read-only:** Host-Pfade sind read-only gebunden; Schreiben scheitert.
-  Beleg: `::test_host_filesystem_readonly`.
+  Verbindungen sind strukturell unmöglich. Beleg: `tests/test_sandbox_isolation.py::test_shipped_script_blocks_egress`.
+- **Host read-only** (außer Wegwerf-/out): Host-Pfade sind read-only gebunden; Schreiben scheitert.
+  Beleg: `::test_shipped_script_host_readonly`.
 - **Ressourcen-Cap:** cgroup `MemoryMax` killt einen Speicher-Fresser (OOM), nicht den Host.
   Beleg: `::test_cgroup_memory_cap_enforced`.
 - **Ziel wird nie ausgeführt:** rein statische Pipeline; das Sample wird als read-only
