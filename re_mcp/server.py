@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-sandboxed-re-mcp — security-first Reverse-Engineering MCP server.
+airgap-re — security-first Reverse-Engineering MCP server.
 
 Konzept wie generische "KI steuert RE-Werkzeuge über MCP"-Server, aber mit einem
 nicht verhandelbaren Unterschied: der Pfad für UNTRUSTED Samples läuft in einer

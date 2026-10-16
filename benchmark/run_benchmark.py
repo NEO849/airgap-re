@@ -153,7 +153,7 @@ def main() -> int:
     det_line = ("deterministisch" if det.get("deterministic") else
                 ("nicht deterministisch" if det.get("available") else f"n/a ({det.get('reason','')})"))
 
-    report = f"""# Benchmark-Report — sandboxed-re-mcp
+    report = f"""# Benchmark-Report — airgap-re
 
 > Selbst-gemessen am {m['measured_at']} (Python {m['python']}) durch `benchmark/run_benchmark.py`.
 > Jede Zahl stammt aus diesem Lauf auf diesem Repo. Reproduzierbar: Skript erneut ausführen.
@@ -186,7 +186,7 @@ def main() -> int:
 Diese Zeilen sind NICHT hier gemessen, sondern dem öffentlichen REA-Repo / dessen README
 und unserer Tool-Prüfung (2026-10-12) entnommen. Sie dienen der ehrlichen Einordnung:
 
-| Dimension | sandboxed-re-mcp | REA (morluto/rea) |
+| Dimension | airgap-re | REA (morluto/rea) |
 |---|---|---|
 | Tool-Breite | nativ + APK-nativ (fokussiert) | sehr breit (nativ/web/firmware/netz/WASM/…) — **REA führt** |
 | Untrusted-Isolation | bwrap no-net + cgroup, nie ausgeführt | **kein Sandbox**; Laufzeit mit User-Rechten |
@@ -194,7 +194,7 @@ und unserer Tool-Prüfung (2026-10-12) entnommen. Sie dienen der ehrlichen Einor
 | Setup-Fußabdruck | lokal, schreibt nicht in Agent-Config | `npx … setup` schreibt in `~/.claude` |
 | Auditierbarkeit | {m['own_code_loc']} Zeilen eigener Code | großer Baum (per Vet ~2255 Dateien) |
 
-> Fazit ehrlich: REA gewinnt bei Breite. sandboxed-re-mcp gewinnt dort, wo es am meisten
+> Fazit ehrlich: REA gewinnt bei Breite. airgap-re gewinnt dort, wo es am meisten
 > zählt, wenn man **fremde/bösartige** Binaries anfasst: Isolation, Auditierbarkeit, geringer Fußabdruck.
 """
     (REPO / "benchmark" / "REPORT.md").write_text(report)

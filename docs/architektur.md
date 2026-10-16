@@ -1,6 +1,6 @@
 # Architecture
 
-`sandboxed-re-mcp` is a thin MCP bridge. The server holds no RE logic; it validates input,
+`airgap-re` is a thin MCP bridge. The server holds no RE logic; it validates input,
 selects the trusted vs. sandboxed path, and shells out to a pre-existing backend stack.
 
 ## Data flow & trust boundary

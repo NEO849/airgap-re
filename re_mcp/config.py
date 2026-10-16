@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-config.py — zentrale, verschiebbare Konfiguration für sandboxed-re-mcp.
+config.py — zentrale, verschiebbare Konfiguration für airgap-re.
 
 Grundsatz: KEINE hartkodierten Host-Pfade im Code. Jeder Pfad wird
   1. per Umgebungsvariable (REMCP_*) gesetzt, sonst

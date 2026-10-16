@@ -1,7 +1,7 @@
 # Security Policy
 
 ## Lawful-use scope
-`sandboxed-re-mcp` is for reverse engineering you are authorized to perform: software you own,
+`airgap-re` is for reverse engineering you are authorized to perform: software you own,
 in-scope bug-bounty targets, CTFs, abandonware, and interoperability research permitted by
 applicable law. It is **read-only**: it never patches, rebuilds, or executes the target.
 

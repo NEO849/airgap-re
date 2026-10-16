@@ -1,6 +1,6 @@
-# Benchmark-Report — sandboxed-re-mcp
+# Benchmark-Report — airgap-re
 
-> Selbst-gemessen am 2026-10-16 16:57 UTC (Python 3.12.3) durch `benchmark/run_benchmark.py`.
+> Selbst-gemessen am 2026-10-16 19:40 UTC (Python 3.12.3) durch `benchmark/run_benchmark.py`.
 > Jede Zahl stammt aus diesem Lauf auf diesem Repo. Reproduzierbar: Skript erneut ausführen.
 
 ## Objektive Kennzahlen (dieses Repo)
@@ -8,7 +8,7 @@
 | Metrik | Wert |
 |---|---|
 | Eigener Code (Dateien) | 8 |
-| Eigener Code (Zeilen) | 1196 |
+| Eigener Code (Zeilen) | 1205 |
 | Direkte Laufzeit-Abhängigkeit | 1 (mcp, gepinnt) |
 | Transitive Laufzeit-Deps (voller Abschluss von mcp) | 27 |
 | Versionierte Dateien gesamt | 22 |
@@ -31,13 +31,13 @@
 Diese Zeilen sind NICHT hier gemessen, sondern dem öffentlichen REA-Repo / dessen README
 und unserer Tool-Prüfung (2026-10-12) entnommen. Sie dienen der ehrlichen Einordnung:
 
-| Dimension | sandboxed-re-mcp | REA (morluto/rea) |
+| Dimension | airgap-re | REA (morluto/rea) |
 |---|---|---|
 | Tool-Breite | nativ + APK-nativ (fokussiert) | sehr breit (nativ/web/firmware/netz/WASM/…) — **REA führt** |
 | Untrusted-Isolation | bwrap no-net + cgroup, nie ausgeführt | **kein Sandbox**; Laufzeit mit User-Rechten |
 | Laufzeit-Deps | 1 dir./27 trans. | ~35 npm (Vet, andere Basis) |
 | Setup-Fußabdruck | lokal, schreibt nicht in Agent-Config | `npx … setup` schreibt in `~/.claude` |
-| Auditierbarkeit | 1196 Zeilen eigener Code | großer Baum (per Vet ~2255 Dateien) |
+| Auditierbarkeit | 1205 Zeilen eigener Code | großer Baum (per Vet ~2255 Dateien) |
 
-> Fazit ehrlich: REA gewinnt bei Breite. sandboxed-re-mcp gewinnt dort, wo es am meisten
+> Fazit ehrlich: REA gewinnt bei Breite. airgap-re gewinnt dort, wo es am meisten
 > zählt, wenn man **fremde/bösartige** Binaries anfasst: Isolation, Auditierbarkeit, geringer Fußabdruck.

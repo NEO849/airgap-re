@@ -1,17 +1,37 @@
-# sandboxed-re-mcp
+# airgap-re
 
 **A security-first reverse-engineering MCP server.** It gives an AI agent (Claude Code,
 Cursor, any MCP client) a small, read-only set of static reverse-engineering tools over a
 proven, auditable stack — and runs every *untrusted* sample inside a no-network bubblewrap
 chamber that never executes the target.
 
-[![CI](https://github.com/NEO849/sandboxed-re-mcp/actions/workflows/ci.yml/badge.svg)](./.github/workflows/ci.yml)
+[![CI](https://github.com/NEO849/airgap-re/actions/workflows/ci.yml/badge.svg)](https://github.com/NEO849/airgap-re/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+![MCP](https://img.shields.io/badge/protocol-MCP-black)
+![Isolation: bubblewrap](https://img.shields.io/badge/isolation-bubblewrap%20%2B%20cgroup-success)
+
+> **Status — v0.1.0, early but gated.** The surface is small and the API may still move, but
+> nothing merges unless the isolation proof runs green in CI. We would rather ship a narrow tool
+> whose guarantees are real than a broad one whose guarantees are hopes.
 
 > **Scope / lawful use.** For software you own, in-scope bug-bounty targets, CTFs, abandonware,
 > and interoperability research permitted by law. Read-only by design: it never patches,
-> rebuilds, or executes the target. See [`SECURITY.md`](SECURITY.md) and the Threat Model below.
+> rebuilds, or executes the target. See [`SECURITY.md`](SECURITY.md) and the [Threat Model](THREAT_MODEL.md).
+
+---
+
+## Contents
+
+- [Why this exists](#why-this-exists-and-where-it-does-not-compete)
+- [What it is, precisely](#what-it-is-precisely)
+- [Architecture & trust boundary](#architecture--trust-boundary)
+- [The security guarantees — proven in CI](#the-security-guarantees--proven-in-ci-not-asserted)
+- [Honest comparison vs. REA](#honest-comparison-vs-rea-morlutorea)
+- [Install](#install)
+- [Usage](#usage-workflow)
+- [Project layout](#project-layout)
+- [License](#license)
 
 ---
 
@@ -27,7 +47,7 @@ binary, the thing that matters most is **isolation and auditability**, not featu
 exactly the axis where broad orchestrators tend to be weakest — many run their dynamic/runtime
 paths with your own user privileges and no container at all.
 
-★ **The honest one-liner:** REA optimizes for *breadth*; `sandboxed-re-mcp` optimizes for
+★ **The honest one-liner:** REA optimizes for *breadth*; `airgap-re` optimizes for
 *safety and auditability on the native-static lane* — the lane where you actually touch
 untrusted code.
 
@@ -46,7 +66,7 @@ A stdio MCP server (Python, one pinned dependency) that orchestrates a **pre-exi
 | **bubblewrap (bwrap)** | the isolation chamber for untrusted samples |
 
 It contains **no RE logic of its own** — it is a thin, auditable bridge. That is a deliberate
-feature: the whole server is small enough to read in one sitting.
+feature: the whole server is small enough to read in one sitting (~1,200 lines of own code).
 
 ### MCP tools exposed
 
@@ -62,11 +82,46 @@ feature: the whole server is small enough to read in one sitting.
 
 ---
 
+## Architecture & trust boundary
+
+The server holds no RE logic; it validates input, picks the trusted vs. sandboxed path, and shells
+out to a pre-existing backend stack. **The sandbox boundary is the product** — everything below
+`bubblewrap` is treated as hostile when the sample is third-party.
+
+```mermaid
+flowchart TD
+    A[MCP client / AI agent] -->|tool call + path| B[re_mcp.server]
+    B --> V{_validate<br/>abs path, is-file, size cap}
+    V -->|invalid| E[JSON error]
+    V -->|valid| P{trusted or untrusted?}
+
+    P -->|own / in-scope| H[analyze_binary<br/>host-side triage]
+    P -->|untrusted| S[sandbox_analyze_binary]
+
+    subgraph chamber[bubblewrap chamber: --unshare-all, caps dropped, host read-only, cgroup caps]
+        S --> T[re_triage.py]
+        T --> G[Ghidra headless]
+        T --> C[capa / floss]
+        T --> N[angr optional]
+    end
+
+    H --> T2[re_triage.py host-side]
+    B --> R[list_symbols: r2 / rizin]
+    B --> D[decompile_function: Ghidra]
+    B --> K[analyze_apk: native .so, sandboxed]
+
+    T --> O[(ranked JSON<br/>via /out, host-temp)]
+    chamber -.no network, no host write.-> X((egress impossible))
+```
+
+Full data flow, properties, and the trust boundary: [`docs/architektur.md`](docs/architektur.md).
+
+---
+
 ## The security guarantees — *proven in CI, not asserted*
 
 Every claim below has a test that fails the build if the guarantee breaks
-([`tests/test_sandbox_isolation.py`](tests/test_sandbox_isolation.py)):
-
+([`tests/test_sandbox_isolation.py`](tests/test_sandbox_isolation.py)).
 The tests drive the **shipped** script (`engine/sandbox_analyze.sh --selftest`), not a
 hand-rolled command — so the guard covers the exact code the server runs. Removing
 `--unshare-all` from the shipped script turns the egress test red (verified by sabotage).
@@ -103,7 +158,7 @@ The *left* column is measured by [`benchmark/run_benchmark.py`](benchmark/run_be
 repo (see [`benchmark/REPORT.md`](benchmark/REPORT.md)). The *right* column is from REA's public repo /
 README and our 2026-10-12 tool review — **external, not measured here.**
 
-| Dimension | sandboxed-re-mcp | REA (morluto/rea) |
+| Dimension | airgap-re | REA (morluto/rea) |
 |---|---|---|
 | Tool breadth | native + APK-native (focused) | very broad — **REA leads** |
 | Untrusted-sample isolation | bwrap no-net + cgroup, never executed | **no sandbox**; runtime paths run with your user rights |
@@ -120,8 +175,8 @@ README and our 2026-10-12 tool review — **external, not measured here.**
 ## Install
 
 ```bash
-git clone https://github.com/NEO849/sandboxed-re-mcp
-cd sandboxed-re-mcp
+git clone https://github.com/NEO849/airgap-re
+cd airgap-re
 python -m venv .venv && . .venv/bin/activate
 pip install -e .
 
@@ -136,7 +191,7 @@ Register with your MCP client (stdio). Example `~/.claude.json` fragment:
 ```json
 {
   "mcpServers": {
-    "re-mcp": {
+    "airgap-re": {
       "type": "stdio",
       "command": "/path/to/.venv/bin/python",
       "args": ["-m", "re_mcp.server"],
@@ -147,7 +202,8 @@ Register with your MCP client (stdio). Example `~/.claude.json` fragment:
 ```
 
 All paths auto-discover from `PATH` and common install locations; override any via `REMCP_*`
-environment variables (see [`re_mcp/config.py`](re_mcp/config.py)).
+environment variables (see [`re_mcp/config.py`](re_mcp/config.py)). Confirm the wiring with the
+`re_capabilities` tool — it reports which backends are present and their versions.
 
 ---
 
@@ -173,6 +229,7 @@ docs/          architektur.md (data-flow diagram)
 ```
 
 See [`docs/architektur.md`](docs/architektur.md) for the data-flow and trust boundaries,
+[`THREAT_MODEL.md`](THREAT_MODEL.md) for what the sandbox does and does not defend against,
 and [`CONTRIBUTING.md`](CONTRIBUTING.md) to hack on it.
 
 ## License

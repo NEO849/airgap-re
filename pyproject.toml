@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sandboxed-re-mcp"
+name = "airgap-re"
 version = "0.1.0"
 description = "Security-first reverse-engineering MCP server: untrusted samples analysed in a no-network bubblewrap chamber, never executed."
 readme = "README.md"
@@ -16,7 +16,7 @@ dependencies = ["mcp==1.30.0"]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10"]
 
 [project.scripts]
-sandboxed-re-mcp = "re_mcp.server:main"
+airgap-re = "re_mcp.server:main"
 
 [tool.setuptools]
 packages = ["re_mcp"]
