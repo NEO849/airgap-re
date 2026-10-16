@@ -5,7 +5,7 @@ Cursor, any MCP client) a small, read-only set of static reverse-engineering too
 proven, auditable stack — and runs every *untrusted* sample inside a no-network bubblewrap
 chamber that never executes the target.
 
-[![CI](https://github.com/OWNER/sandboxed-re-mcp/actions/workflows/ci.yml/badge.svg)](./.github/workflows/ci.yml)
+[![CI](https://github.com/NEO849/sandboxed-re-mcp/actions/workflows/ci.yml/badge.svg)](./.github/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 
@@ -120,7 +120,7 @@ README and our 2026-10-12 tool review — **external, not measured here.**
 ## Install
 
 ```bash
-git clone https://github.com/OWNER/sandboxed-re-mcp
+git clone https://github.com/NEO849/sandboxed-re-mcp
 cd sandboxed-re-mcp
 python -m venv .venv && . .venv/bin/activate
 pip install -e .
