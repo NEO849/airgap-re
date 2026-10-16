@@ -18,6 +18,9 @@ jobs:
       - name: System-Abhängigkeiten (bubblewrap für Isolations-Tests, shellcheck für Bash)
         run: sudo apt-get update && sudo apt-get install -y bubblewrap shellcheck
 
+      - name: Unprivilegierte user-namespaces freischalten (Ubuntu 24.04 AppArmor sperrt sie)
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
       - name: Python-Abhängigkeiten
         run: |
           python -m pip install --upgrade pip
@@ -31,6 +34,11 @@ jobs:
 
       - name: Shellcheck — die Isolations-Scripts (Bash)
         run: shellcheck --severity=warning engine/sandbox_analyze.sh engine/apk_native_triage.sh
+
+      - name: Harter Isolations-Beweis (ausgelieferter Pfad MUSS verdict=PASS liefern)
+        run: |
+          out=$(bash engine/sandbox_analyze.sh --selftest); echo "$out"
+          echo "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get("verdict")=="PASS" else 1)'
 
       - name: Tests (pytest) — inkl. Isolations-Beweis gegen den ausgelieferten Pfad
         run: pytest -v

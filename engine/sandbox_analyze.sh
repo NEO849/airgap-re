@@ -120,8 +120,17 @@ run_with_caps() {
 
 # -------- Ausführen + Ergebnis --------
 if [ "$MODE" = "selftest" ]; then
-  # Selbsttest-JSON direkt auf stdout (kein /out nötig)
-  run_with_caps 2>/tmp/sbx.err
+  # Selbsttest-JSON direkt auf stdout. Schlägt bwrap-Namespace-Setup fehl (z.B. AppArmor
+  # sperrt unprivilegierte user-namespaces), gibt es KEIN Probe-JSON -> Fehler-JSON mit detail,
+  # damit der Aufrufer env-Blockade von echtem Egress unterscheiden kann.
+  st_err="$(mktemp)"; st_out="$(run_with_caps 2>"$st_err")"
+  if [ -n "$st_out" ]; then
+    echo "$st_out"
+  else
+    printf '{"error":"sandbox_start_failed","detail":%s}\n' \
+      "$(head -c 500 "$st_err" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')"
+  fi
+  rm -f "$st_err"
   exit 0
 fi
 
