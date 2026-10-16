@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: System-Abhängigkeiten (bubblewrap für Isolations-Tests)
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+
+      - name: Python-Abhängigkeiten
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check re_mcp benchmark tests
+
+      - name: Typecheck (mypy)
+        run: mypy re_mcp
+
+      - name: Tests (pytest) — inkl. Isolations-Beweis
+        run: pytest -v
+
+      - name: Benchmark (reproduzierbare Kennzahlen)
+        run: python benchmark/run_benchmark.py
