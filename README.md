@@ -1,59 +1,60 @@
+<div align="center">
+
+<img src="docs/readme/hero.png" alt="airgap-re — security-first reverse-engineering MCP server" width="860">
+
+<br/>
+
 # airgap-re
 
-**A security-first reverse-engineering MCP server.** It gives an AI agent (Claude Code,
-Cursor, any MCP client) a small, read-only set of static reverse-engineering tools over a
-proven, auditable stack — and runs every *untrusted* sample inside a no-network bubblewrap
-chamber that never executes the target.
+**Analyze someone else's binary without handing it your privileges.**
+
+<em>A security-first reverse-engineering MCP server. It gives an AI agent (Claude Code, Cursor, any MCP client)<br/>a small, read-only set of static RE tools over a proven stack — and runs every <b>untrusted</b> sample inside a<br/>no-network bubblewrap chamber that is never executed and whose isolation is <b>proven in CI</b>.</em>
+
+<br/>
 
 [![CI](https://github.com/NEO849/airgap-re/actions/workflows/ci.yml/badge.svg)](https://github.com/NEO849/airgap-re/actions/workflows/ci.yml)
-![License: MIT](https://img.shields.io/badge/license-MIT-blue)
-![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
-![MCP](https://img.shields.io/badge/protocol-MCP-black)
-![Isolation: bubblewrap](https://img.shields.io/badge/isolation-bubblewrap%20%2B%20cgroup-success)
+&nbsp;
+![License](https://img.shields.io/badge/License-MIT-2b3440?style=flat-square&labelColor=0b0f14)
+![Python](https://img.shields.io/badge/Python-3.10+-2b3440?style=flat-square&logo=python&logoColor=9aa39c&labelColor=0b0f14)
+![Protocol](https://img.shields.io/badge/Protocol-MCP-2b3440?style=flat-square&labelColor=0b0f14)
+![Isolation](https://img.shields.io/badge/Isolation-bubblewrap_+_cgroup-1f7a33?style=flat-square&labelColor=0b0f14)
 
-> **Status — v0.1.0, early but gated.** The surface is small and the API may still move, but
-> nothing merges unless the isolation proof runs green in CI. We would rather ship a narrow tool
-> whose guarantees are real than a broad one whose guarantees are hopes.
+<br/>
 
-> **Scope / lawful use.** For software you own, in-scope bug-bounty targets, CTFs, abandonware,
-> and interoperability research permitted by law. Read-only by design: it never patches,
-> rebuilds, or executes the target. See [`SECURITY.md`](SECURITY.md) and the [Threat Model](THREAT_MODEL.md).
+<a href="#why">Why</a> · <a href="#what">What it is</a> · <a href="#architecture">Architecture</a> · <a href="#guarantees">Guarantees</a> · <a href="#comparison">vs. REA</a> · <a href="#install">Install</a> · <a href="#usage">Usage</a> · <a href="#layout">Layout</a>
 
----
+</div>
 
-## Contents
+> **Status — v0.1.0, early but gated.** The surface is small and the API may still move, but nothing
+> merges unless the isolation proof runs green in CI. We would rather ship a narrow tool whose
+> guarantees are real than a broad one whose guarantees are hopes.
 
-- [Why this exists](#why-this-exists-and-where-it-does-not-compete)
-- [What it is, precisely](#what-it-is-precisely)
-- [Architecture & trust boundary](#architecture--trust-boundary)
-- [The security guarantees — proven in CI](#the-security-guarantees--proven-in-ci-not-asserted)
-- [Honest comparison vs. REA](#honest-comparison-vs-rea-morlutorea)
-- [Install](#install)
-- [Usage](#usage-workflow)
-- [Project layout](#project-layout)
-- [License](#license)
+> **Scope / lawful use.** For software you own, in-scope bug-bounty targets, CTFs, abandonware, and
+> interoperability research permitted by law. Read-only by design: it never patches, rebuilds, or
+> executes the target. See [`SECURITY.md`](SECURITY.md) and the [Threat Model](THREAT_MODEL.md).
 
 ---
 
-## Why this exists (and where it does *not* compete)
+<a id="why"></a>
+![Why this exists](https://img.shields.io/badge/Why_this_exists-141820?style=for-the-badge&labelColor=0b0f14)
 
-A wave of "AI reverse-engineers anything over MCP" tooling is genuinely useful — broad,
-convenient, well-packaged. The best-known of them, [`morluto/rea`](https://github.com/morluto/rea),
-covers an impressively wide surface (native, mobile, web, firmware, network, WASM, managed code).
+A wave of "AI reverse-engineers anything over MCP" tooling is genuinely useful — broad, convenient,
+well-packaged. The best-known of them, [`morluto/rea`](https://github.com/morluto/rea), covers an
+impressively wide surface (native, mobile, web, firmware, network, WASM, managed code).
 **On raw breadth, REA leads, and this project does not try to match it.**
 
-This project makes a different, narrower bet: when you point an analysis tool at a *hostile*
-binary, the thing that matters most is **isolation and auditability**, not feature count. That is
-exactly the axis where broad orchestrators tend to be weakest — many run their dynamic/runtime
-paths with your own user privileges and no container at all.
+This project makes a different, narrower bet: when you point an analysis tool at a *hostile* binary,
+the thing that matters most is **isolation and auditability**, not feature count. That is exactly the
+axis where broad orchestrators tend to be weakest — many run their dynamic/runtime paths with your
+own user privileges and no container at all.
 
-★ **The honest one-liner:** REA optimizes for *breadth*; `airgap-re` optimizes for
-*safety and auditability on the native-static lane* — the lane where you actually touch
-untrusted code.
+> **The honest one-liner:** REA optimizes for *breadth*; `airgap-re` optimizes for *safety and
+> auditability on the native-static lane* — the lane where you actually touch untrusted code.
 
 ---
 
-## What it is, precisely
+<a id="what"></a>
+![What it is, precisely](https://img.shields.io/badge/What_it_is-141820?style=for-the-badge&labelColor=0b0f14)
 
 A stdio MCP server (Python, one pinned dependency) that orchestrates a **pre-existing** RE stack:
 
@@ -68,7 +69,7 @@ A stdio MCP server (Python, one pinned dependency) that orchestrates a **pre-exi
 It contains **no RE logic of its own** — it is a thin, auditable bridge. That is a deliberate
 feature: the whole server is small enough to read in one sitting (~1,200 lines of own code).
 
-### MCP tools exposed
+**MCP tools exposed**
 
 | Tool | What it does |
 |---|---|
@@ -82,11 +83,17 @@ feature: the whole server is small enough to read in one sitting (~1,200 lines o
 
 ---
 
-## Architecture & trust boundary
+<a id="architecture"></a>
+![Architecture and trust boundary](https://img.shields.io/badge/Architecture_and_trust_boundary-141820?style=for-the-badge&labelColor=0b0f14)
 
 The server holds no RE logic; it validates input, picks the trusted vs. sandboxed path, and shells
 out to a pre-existing backend stack. **The sandbox boundary is the product** — everything below
-`bubblewrap` is treated as hostile when the sample is third-party.
+`bubblewrap` is treated as hostile when the sample is third-party. An untrusted `sample.bin` goes in;
+the network, your `~/.ssh`, and your privileges stay **unreachable**:
+
+<div align="center">
+<img src="docs/readme/chamber.png" alt="The no-network bubblewrap chamber: sample.bin is analysed as data while network, ~/.ssh and privileges are all unreachable" width="820">
+</div>
 
 ```mermaid
 flowchart TD
@@ -118,23 +125,21 @@ Full data flow, properties, and the trust boundary: [`docs/architektur.md`](docs
 
 ---
 
-## The security guarantees — *proven in CI, not asserted*
+<a id="guarantees"></a>
+![The security guarantees, proven in CI](https://img.shields.io/badge/Security_guarantees_proven_in_CI-1f7a33?style=for-the-badge&labelColor=0b0f14)
 
 Every claim below has a test that fails the build if the guarantee breaks
-([`tests/test_sandbox_isolation.py`](tests/test_sandbox_isolation.py)).
-The tests drive the **shipped** script (`engine/sandbox_analyze.sh --selftest`), not a
-hand-rolled command — so the guard covers the exact code the server runs. Removing
-`--unshare-all` from the shipped script turns the egress test red (verified by sabotage).
+([`tests/test_sandbox_isolation.py`](tests/test_sandbox_isolation.py)). The tests drive the
+**shipped** script (`engine/sandbox_analyze.sh --selftest`), not a hand-rolled command — so the guard
+covers the exact code the server runs. Removing `--unshare-all` from the shipped script turns the
+egress test red (verified by sabotage).
 
-- **No egress.** The chamber runs `bwrap --unshare-all`, which removes the network namespace.
-  An outbound connection is not blocked by policy — it is *structurally impossible*.
-  → `test_shipped_script_blocks_egress`
-- **Host filesystem is read-only**, except one throwaway `/out` (a `mktemp` dir) that is removed
-  on exit; writes to host paths fail. → `test_shipped_script_host_readonly`
-- **Resource caps.** A cgroup `MemoryMax` + `MemorySwapMax=0` makes a memory-bomb OOM-killed
-  instead of taking the host down. → `test_cgroup_memory_cap_enforced`
-- **The target is never executed.** The pipeline is purely static; the sample is mounted
-  read-only and analysed as data.
+| Guarantee | How it holds | Test |
+|---|---|---|
+| **No egress** | chamber runs `bwrap --unshare-all` → the network namespace is gone; an outbound connection is not blocked by policy, it is *structurally impossible* | `test_shipped_script_blocks_egress` |
+| **Host read-only** | one throwaway `/out` (`mktemp`, removed on exit); writes to host paths fail | `test_shipped_script_host_readonly` |
+| **Resource caps** | cgroup `MemoryMax` + `MemorySwapMax=0` → a memory-bomb is OOM-killed, not the host | `test_cgroup_memory_cap_enforced` |
+| **Never executed** | the pipeline is purely static; the sample is mounted read-only and analysed as data | (by construction) |
 
 Run the proof yourself:
 
@@ -143,22 +148,28 @@ pip install -e ".[dev]"
 pytest -v          # includes the isolation proof (needs bubblewrap)
 ```
 
-### Non-goal (stated honestly)
-
-No custom **seccomp-BPF** filter is applied. bwrap applies none by default, and a wrong filter
-would silently break Ghidra/Python. Isolation here rests on **namespaces (`--unshare-all`) +
-capability drop + read-only binds + cgroup limits** — not on a syscall filter we cannot verify.
-A reviewed seccomp profile is possible future work, not a current claim.
+**Non-goal (stated honestly).** No custom **seccomp-BPF** filter is applied. bwrap applies none by
+default, and a wrong filter would silently break Ghidra/Python. Isolation here rests on **namespaces
+(`--unshare-all`) + capability drop + read-only binds + cgroup limits** — not on a syscall filter we
+cannot verify. A reviewed seccomp profile is possible future work, not a current claim.
 
 ---
 
-## Honest comparison vs. REA (`morluto/rea`)
+<a id="comparison"></a>
+![Honest comparison vs REA](https://img.shields.io/badge/Comparison_vs_REA-141820?style=for-the-badge&labelColor=0b0f14)
 
-The *left* column is measured by [`benchmark/run_benchmark.py`](benchmark/run_benchmark.py) on this
-repo (see [`benchmark/REPORT.md`](benchmark/REPORT.md)). The *right* column is from REA's public repo /
-README and our 2026-10-12 tool review — **external, not measured here.**
+Not a knock on REA — it is static-by-default and leads on breadth. But even its static pass runs with
+your privileges and the network reachable. **Different bets for different threat models.**
 
-| Dimension | airgap-re | REA (morluto/rea) |
+<div align="center">
+<img src="docs/readme/compare.png" alt="Honest comparison: REA vs airgap-re across surface breadth, untrusted-sample isolation, execution, egress, isolation proof and codebase size" width="900">
+</div>
+
+The *left* column below is measured by [`benchmark/run_benchmark.py`](benchmark/run_benchmark.py) on
+this repo (see [`benchmark/REPORT.md`](benchmark/REPORT.md)). The *right* column is from REA's public
+repo / README and our 2026-10-12 tool review — **external, not measured here.**
+
+| Dimension | airgap-re | REA (`morluto/rea`) |
 |---|---|---|
 | Tool breadth | native + APK-native (focused) | very broad — **REA leads** |
 | Untrusted-sample isolation | bwrap no-net + cgroup, never executed | **no sandbox**; runtime paths run with your user rights |
@@ -167,12 +178,13 @@ README and our 2026-10-12 tool review — **external, not measured here.**
 | Auditability | ~1,200 lines of own code | large tree (~2,255 files, per our review) |
 | License | MIT | MIT |
 
-> If you need the widest possible toolbox on trusted inputs, REA is a strong choice. If you need
-> to analyse **someone else's** binary without handing it your privileges, this is built for that.
+> If you need the widest possible toolbox on trusted inputs, REA is a strong choice. If you need to
+> analyse **someone else's** binary without handing it your privileges, this is built for that.
 
 ---
 
-## Install
+<a id="install"></a>
+![Install](https://img.shields.io/badge/Install-141820?style=for-the-badge&labelColor=0b0f14)
 
 ```bash
 git clone https://github.com/NEO849/airgap-re
@@ -207,7 +219,8 @@ environment variables (see [`re_mcp/config.py`](re_mcp/config.py)). Confirm the 
 
 ---
 
-## Usage (workflow)
+<a id="usage"></a>
+![Usage](https://img.shields.io/badge/Usage-141820?style=for-the-badge&labelColor=0b0f14)
 
 1. `re_capabilities` — see what's available.
 2. `list_symbols` — fast overview, pick targets.
@@ -218,20 +231,31 @@ environment variables (see [`re_mcp/config.py`](re_mcp/config.py)). Confirm the 
 
 ---
 
-## Project layout
+<a id="layout"></a>
+![Project layout](https://img.shields.io/badge/Project_layout-141820?style=for-the-badge&labelColor=0b0f14)
 
 ```
 re_mcp/        server.py (MCP tools) · config.py (env/auto-discovery)
 engine/        re_triage.py · sandbox_analyze.sh · apk_native_triage.sh · ghidra_scripts/
 tests/         test_validate.py · test_sandbox_isolation.py (the proof)
 benchmark/     run_benchmark.py → REPORT.md
-docs/          architektur.md (data-flow diagram)
+docs/          architektur.md (data-flow diagram) · readme/ (figures)
 ```
 
 See [`docs/architektur.md`](docs/architektur.md) for the data-flow and trust boundaries,
-[`THREAT_MODEL.md`](THREAT_MODEL.md) for what the sandbox does and does not defend against,
-and [`CONTRIBUTING.md`](CONTRIBUTING.md) to hack on it.
+[`THREAT_MODEL.md`](THREAT_MODEL.md) for what the sandbox does and does not defend against, and
+[`CONTRIBUTING.md`](CONTRIBUTING.md) to hack on it.
 
-## License
+---
+
+<div align="center">
+
+**Built by [NEO849](https://github.com/NEO849).** Issues and PRs welcome — start with [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+![License](https://img.shields.io/badge/License-MIT-2b3440?style=flat-square&labelColor=0b0f14)
+&nbsp;
+![Built with](https://img.shields.io/badge/Built_with-Python,_bubblewrap,_Ghidra-2b3440?style=flat-square&labelColor=0b0f14)
 
 MIT — see [`LICENSE`](LICENSE).
+
+</div>
