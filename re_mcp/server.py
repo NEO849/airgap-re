@@ -28,6 +28,7 @@ import sys
 import tempfile
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from . import config
 
@@ -40,6 +41,25 @@ logging.basicConfig(
 log = logging.getLogger("re-mcp")
 
 mcp = FastMCP("re-mcp")
+
+# ---------- Tool-Annotationen (MCP ToolAnnotations) ----------
+# Alle 7 Tools teilen dasselbe, ehrliche Verhaltensprofil, das dem Produkt-
+# versprechen entspricht:
+#   readOnlyHint=True   -> read-only AM ZIEL: das Sample wird nie ausgeführt und
+#                          nie verändert; es gibt keine Änderung an Nutzerdaten.
+#   destructiveHint=False -> kein destruktiver Eingriff. (Die Tools legen ggf.
+#                          eigenes Temp-Scratch an und räumen es selbst wieder weg
+#                          — das ist kein destruktives Update fremder Daten.)
+#   idempotentHint=True -> gleiches Sample + gleiche Argumente -> gleiche Analyse,
+#                          ohne akkumulierende Seiteneffekte.
+#   openWorldHint=False -> rein lokale Backends, kein Netz (die Sandbox verbietet
+#                          Egress strukturell via --unshare-all).
+_READONLY = ToolAnnotations(
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=False,
+)
 
 
 # ---------- Helfer ----------
@@ -86,10 +106,12 @@ def _r2(binary, pipeline):
 
 
 # ---------- Tools ----------
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def re_capabilities() -> str:
     """Health-Check: welche RE-Backends sind verfügbar (Ghidra/r2/capa/floss/angr/jadx/apktool/bwrap)
-    + Versionen. Immer zuerst aufrufen, wenn unklar ist, was geht."""
+    + Versionen. Immer zuerst aufrufen, wenn unklar ist, was geht.
+    Startet dafür lokale Backends kurz zur Verfügbarkeitsprüfung (kein Netz, keine
+    Datenänderung). READ-ONLY — kein Ziel/keine Nutzerdaten betroffen."""
     caps: dict[str, object] = {}
     caps["ghidra_headless"] = config.ghidra_available()
     for t in ("r2", "rizin", "capa", "floss", "jadx", "apktool", "bwrap", "systemd-run"):
@@ -106,12 +128,14 @@ def re_capabilities() -> str:
     return json.dumps(caps, indent=2, ensure_ascii=False)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def analyze_binary(path: str, floss: bool = False, symbolic: bool = False) -> str:
     """Volle statische Triage eines nativen Binaries (ELF/PE/Mach-O/.so) HOST-seitig via re_triage.py:
     Ghidra-Dekompilat -> capa-Capabilities -> floss-Strings (opt) -> Sink-Rang -> angr (opt).
     Liefert strukturiertes JSON (Top-verdächtige Funktionen, Capabilities, Strings).
-    READ-ONLY. Für EIGENE / in-scope / CTF-Binaries. Fremde/untrusted Samples -> sandbox_analyze_binary.
+    READ-ONLY am Ziel: das Binary wird nie ausgeführt/verändert; es wird nur ein eigenes
+    Temp-JSON angelegt und sofort wieder entfernt (keine Nutzerdaten-Änderung).
+    Für EIGENE / in-scope / CTF-Binaries. Fremde/untrusted Samples -> sandbox_analyze_binary.
     Kann mehrere Minuten dauern (Ghidra-Analyse)."""
     err = _validate(path)
     if err:
@@ -149,7 +173,7 @@ def analyze_binary(path: str, floss: bool = False, symbolic: bool = False) -> st
     return json.dumps(slim, ensure_ascii=False)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def sandbox_analyze_binary(path: str, floss: bool = False) -> str:
     """Wie analyze_binary, aber ISOLIERT in einer bubblewrap-Wegwerfkammer:
     --unshare-all (KEIN Netz -> Egress strukturell unmöglich), keine Capabilities,
@@ -171,7 +195,7 @@ def sandbox_analyze_binary(path: str, floss: bool = False) -> str:
         return json.dumps({"raw": out[:4000], "stderr": serr[:400]})
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def sandbox_selftest() -> str:
     """Beweist LIVE die Isolations-Garantien der AUSGELIEFERTEN Sandbox (keine Analyse eines Ziels):
     ruft exakt engine/sandbox_analyze.sh --selftest auf — denselben bwrap-Aufbau (inkl. --unshare-all)
@@ -185,10 +209,12 @@ def sandbox_selftest() -> str:
         return json.dumps({"error": "Selbsttest ohne JSON", "rc": rc, "stdout": out[:400], "stderr": serr[:400]})
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def decompile_function(path: str, function: str) -> str:
     """Dekompiliert GENAU EINE Funktion (nach Name oder Entry-Adresse 0x...) via Ghidra-headless -> C-Text + Signatur.
-    'function' z.B. 'main', 'check_license' oder '0x401160'. READ-ONLY. Kann einige Minuten dauern."""
+    'function' z.B. 'main', 'check_license' oder '0x401160'.
+    READ-ONLY am Ziel: nutzt ein eigenes Ghidra-Wegwerf-Projekt im Temp, das danach
+    selbst entfernt wird (keine Nutzerdaten-Änderung). Kann einige Minuten dauern."""
     err = _validate(path)
     if err:
         return json.dumps({"error": err})
@@ -216,7 +242,7 @@ def decompile_function(path: str, function: str) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def list_symbols(path: str, kind: str = "functions") -> str:
     """Schnelles Inventar via r2/rizin (ohne Ghidra, Sekunden). kind = 'functions' | 'imports' | 'strings'.
     Gut für den ersten Überblick / um Ziele für decompile_function zu finden. READ-ONLY."""
@@ -245,12 +271,13 @@ def list_symbols(path: str, kind: str = "functions") -> str:
     return json.dumps({"kind": kind, "count": len(arr), "items": arr}, ensure_ascii=False)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READONLY)
 def analyze_apk(path: str, arch: str = "", sandbox: bool = True) -> str:
     """Android-APK-Triage: zieht native Libs (lib/*/*.so) und jagt jede durch re_triage.py
     (Ghidra-Dekompilat -> capa/floss -> Sink-Rang). Deckt die native Schicht ab, die jadx/apktool nicht sehen.
     'arch' optional, z.B. 'arm64-v8a' (sonst alle). 'sandbox' (Default True): läuft in der bwrap-Kammer
-    (keine Ausführung, kein Netz). READ-ONLY, entpackt nur, führt NICHTS aus der APK aus. Eigene / in-scope APKs."""
+    (keine Ausführung, kein Netz). READ-ONLY am Ziel: entpackt nur in ein eigenes Temp-
+    Verzeichnis, das danach selbst entfernt wird, und führt NICHTS aus der APK aus. Eigene / in-scope APKs."""
     err = _validate(path, want_suffix=".apk")
     if err:
         return json.dumps({"error": err})

@@ -14,6 +14,8 @@
 
 [![CI](https://github.com/NEO849/airgap-re/actions/workflows/ci.yml/badge.svg)](https://github.com/NEO849/airgap-re/actions/workflows/ci.yml)
 &nbsp;
+[![M8ven Score](https://m8ven.ai/badge/mcp/neo849-sandboxed-re-mcp-lo4a2a?v=05c201b5b76e31e093c098575276e6d5)](https://m8ven.ai/mcp/neo849-sandboxed-re-mcp-lo4a2a?s=readme)
+&nbsp;
 ![License](https://img.shields.io/badge/License-MIT-2b3440?style=flat-square&labelColor=0b0f14)
 ![Python](https://img.shields.io/badge/Python-3.10+-2b3440?style=flat-square&logo=python&logoColor=9aa39c&labelColor=0b0f14)
 ![Protocol](https://img.shields.io/badge/Protocol-MCP-2b3440?style=flat-square&labelColor=0b0f14)
