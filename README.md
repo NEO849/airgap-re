@@ -51,7 +51,11 @@ axis where broad orchestrators tend to be weakest — many run their dynamic/run
 own user privileges and no container at all.
 
 > **The honest one-liner:** REA optimizes for *breadth*; `airgap-re` optimizes for *safety and
-> auditability on the native-static lane* — the lane where you actually touch untrusted code.
+> auditability on the native-static lane*, the lane where you actually touch untrusted code.
+
+Put it another way. Most "analyze anything" tools ask *what can I analyze?* This one also asks
+*what if the file bites back?* A glovebox, not an open workbench. **When the code is hostile,
+isolation wins.**
 
 ---
 
@@ -69,7 +73,8 @@ A stdio MCP server (Python, one pinned dependency) that orchestrates a **pre-exi
 | **bubblewrap (bwrap)** | the isolation chamber for untrusted samples |
 
 It contains **no RE logic of its own** — it is a thin, auditable bridge. That is a deliberate
-feature: the whole server is small enough to read in one sitting (~1,200 lines of own code).
+feature: the whole server is small enough to read in one sitting (1,232 lines of own code,
+across 8 files, behind a single pinned dependency).
 
 **MCP tools exposed**
 
@@ -175,9 +180,9 @@ repo / README and our 2026-10-12 tool review — **external, not measured here.*
 |---|---|---|
 | Tool breadth | native + APK-native (focused) | very broad — **REA leads** |
 | Untrusted-sample isolation | bwrap no-net + cgroup, never executed | **no sandbox**; runtime paths run with your user rights |
-| Runtime dependencies | **1 direct** (`mcp`) / 27 transitive | ~35 npm (per our review — different counting basis) |
+| Runtime dependencies | **1 direct** (`mcp`) / 28 transitive | ~35 npm (per our review, different counting basis) |
 | Setup footprint | local; does **not** write into your agent config | `npx … setup` writes into `~/.claude` |
-| Auditability | ~1,200 lines of own code | large tree (~2,255 files, per our review) |
+| Auditability | **1,232 lines** of own code, 8 files | large tree (~2,255 files, per our review) |
 | License | MIT | MIT |
 
 > If you need the widest possible toolbox on trusted inputs, REA is a strong choice. If you need to
