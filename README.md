@@ -20,6 +20,7 @@
 ![Python](https://img.shields.io/badge/Python-3.10+-2b3440?style=flat-square&logo=python&logoColor=9aa39c&labelColor=0b0f14)
 ![Protocol](https://img.shields.io/badge/Protocol-MCP-2b3440?style=flat-square&labelColor=0b0f14)
 ![Isolation](https://img.shields.io/badge/Isolation-bubblewrap_+_cgroup-1f7a33?style=flat-square&labelColor=0b0f14)
+[![Glama](https://glama.ai/mcp/servers/NEO849/airgap-re/badge)](https://glama.ai/mcp/servers/NEO849/airgap-re)
 
 <br/>
 
@@ -223,6 +224,26 @@ Register with your MCP client (stdio). Example `~/.claude.json` fragment:
 All paths auto-discover from `PATH` and common install locations; override any via `REMCP_*`
 environment variables (see [`re_mcp/config.py`](re_mcp/config.py)). Confirm the wiring with the
 `re_capabilities` tool — it reports which backends are present and their versions.
+
+**Run with Docker.** A `Dockerfile` is included and powers the [Glama](https://glama.ai/mcp/servers/NEO849/airgap-re) directory build:
+
+```bash
+docker build -t airgap-re .
+```
+
+Point your MCP client at the container instead of a local venv:
+
+```json
+{ "mcpServers": { "airgap-re": {
+  "type": "stdio", "command": "docker", "args": ["run", "-i", "--rm", "airgap-re"]
+} } }
+```
+
+The image ships `bubblewrap`; real isolation *inside* a container needs a privileged runtime
+(`--privileged` or appropriate user-namespace settings), and the heavier backends (Ghidra,
+radare2/rizin) are host-installed as above — so for full-capability use the native `pip install`
+path is recommended. The image exists mainly so directory builds (e.g. Glama) are deterministic.
+
 
 ---
 
