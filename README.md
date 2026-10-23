@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/readme/hero.png" alt="airgap-re — security-first reverse-engineering MCP server" width="860">
+<img src="docs/readme/hero.png" alt="The no-network bubblewrap chamber: an untrusted sample.bin is read as data while the network, your ~/.ssh and your privileges stay unreachable" width="860">
 
 <br/>
 
