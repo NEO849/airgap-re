@@ -20,7 +20,8 @@
 ![Python](https://img.shields.io/badge/Python-3.10+-2b3440?style=flat-square&logo=python&logoColor=9aa39c&labelColor=0b0f14)
 ![Protocol](https://img.shields.io/badge/Protocol-MCP-2b3440?style=flat-square&labelColor=0b0f14)
 ![Isolation](https://img.shields.io/badge/Isolation-bubblewrap_+_cgroup-1f7a33?style=flat-square&labelColor=0b0f14)
-[![Glama](https://glama.ai/mcp/servers/NEO849/airgap-re/badge)](https://glama.ai/mcp/servers/NEO849/airgap-re)
+
+<a href="https://glama.ai/mcp/servers/NEO849/airgap-re"><img src="https://glama.ai/mcp/servers/NEO849/airgap-re/badge" alt="Glama — airgap-re MCP server" width="200" /></a>
 
 <br/>
 
