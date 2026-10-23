@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/readme/hero.png" alt="The no-network bubblewrap chamber: an untrusted sample.bin is read as data while the network, your ~/.ssh and your privileges stay unreachable" width="860">
+<img src="docs/readme/hero.png" alt="The no-network bubblewrap chamber: an untrusted sample.bin is read as data while the network, your ~/.ssh and your privileges stay unreachable" width="100%">
 
 <br/>
 
@@ -100,7 +100,7 @@ out to a pre-existing backend stack. **The sandbox boundary is the product** —
 the network, your `~/.ssh`, and your privileges stay **unreachable**:
 
 <div align="center">
-<img src="docs/readme/chamber.png" alt="The no-network bubblewrap chamber: sample.bin is analysed as data while network, ~/.ssh and privileges are all unreachable" width="820">
+<img src="docs/readme/chamber.png" alt="The no-network bubblewrap chamber: sample.bin is analysed as data while network, ~/.ssh and privileges are all unreachable" width="100%">
 </div>
 
 ```mermaid
@@ -170,7 +170,7 @@ Not a knock on REA — it is static-by-default and leads on breadth. But even it
 your privileges and the network reachable. **Different bets for different threat models.**
 
 <div align="center">
-<img src="docs/readme/compare.png" alt="Honest comparison: REA vs airgap-re across surface breadth, untrusted-sample isolation, execution, egress, isolation proof and codebase size" width="900">
+<img src="docs/readme/compare.png" alt="Honest comparison: REA vs airgap-re across surface breadth, untrusted-sample isolation, execution, egress, isolation proof and codebase size" width="100%">
 </div>
 
 The *left* column below is measured by [`benchmark/run_benchmark.py`](benchmark/run_benchmark.py) on
